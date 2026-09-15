@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#141b1a">
+  <title>赤色前线 · 离线即时战略</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <a class="brand" href="./index.html"><span class="brand-mark">↗</span><span>赤色前线<small>RED FRONTIER</small></span></a>
+      <div class="operation"><span class="live-dot"></span>遭遇战 <span class="divider">/</span> 01 · 荒原行动</div>
+      <div class="resources"><div><small>资金 CREDIT</small><strong id="credits">2,400</strong></div><div><small>电力 POWER</small><strong id="power">120 / 50</strong></div><div><small>部队 UNITS</small><strong id="unit-count">03</strong></div></div>
+      <button class="icon-button" id="pause" title="暂停 / 继续（空格）">Ⅱ</button>
+      <button class="icon-button" id="help" title="操作说明">?</button>
+    </header>
+    <main>
+      <section class="battlefield" aria-label="战场">
+        <canvas id="battle" aria-label="战场：左键选择，右键移动或攻击" tabindex="0"></canvas>
+        <div class="map-label"><span>SECTOR 07</span><b>灰岩盆地</b><small>38° 42′ N · 69° 18′ E</small></div>
+        <div class="battle-top"><span class="tag">离线单人</span><span id="clock">00:00</span><button id="sound" title="切换音效">音效 关</button></div>
+        <div id="toast" role="status" aria-live="polite"></div>
+        <div id="placement-hint" hidden>选择绿色区域部署建筑 · 右键 / Esc 取消</div>
+        <div class="map-tools"><button id="home" title="回到基地（H）">⌖</button><button id="zoom-in" title="放大">+</button><button id="zoom-out" title="缩小">−</button></div>
+        <div class="battle-footer"><span><i class="live-dot"></i> <b id="battle-status">等待指令</b></span><span>左键选择 · 右键指挥 · WASD 移动视角</span></div>
+      </section>
+      <aside class="sidebar">
+        <section class="radar-section"><div class="section-heading"><h2>战术雷达</h2><span>TACTICAL MAP</span></div><canvas id="radar" width="276" height="174" aria-label="点击小地图移动视角"></canvas><div class="radar-legend"><span><i class="ally"></i>我方</span><span><i class="enemy"></i>敌方</span><span><i class="ore"></i>矿藏</span><span>点击定位 ↗</span></div></section>
+        <section class="objective"><span class="objective-icon">◎</span><div><small>当前任务</small><b>摧毁敌方指挥部</b><p id="objective-detail">发展基地，向东北方推进。</p></div></section>
+        <section class="production"><div class="tabs"><button class="active" data-tab="buildings">基地建设 <span>01</span></button><button data-tab="units">部队生产 <span>02</span></button></div><div id="build-list"></div><div id="queue"></div></section>
+        <section class="selection"><div class="section-heading"><h2>作战单位</h2><span id="selection-count">未选择</span></div><div id="selection-info"><div class="empty-selection">⌖<p>选择单位以查看状态</p><small>拖动鼠标可框选多支部队</small></div></div><div class="unit-actions"><button id="select-army">全选部队 <kbd>Q</kbd></button><button id="stop">停止 <kbd>S*</kbd></button></div></section>
+        <footer class="sidebar-footer"><span>本地自动存档 <i id="save-dot"></i></span><button id="restart">重新开始 ↺</button></footer>
+      </aside>
+    </main>
+    <footer class="bottom-bar"><span><b>RF</b> FIELD COMMAND SYSTEM <em>v0.1</em></span><span>框选部队 <kbd>拖动</kbd> 攻击移动 <kbd>A + 左键</kbd> 回到基地 <kbd>H</kbd> 暂停 <kbd>Space</kbd></span><span id="fps">LOCAL · READY</span></footer>
+  </div>
+  <div class="modal-backdrop" id="modal"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-eyebrow">RED FRONTIER / OPERATION 01</div><div class="modal-symbol">↗</div><h1 id="modal-title">荒原行动</h1><p id="modal-description">建立你的基地，集结钢铁洪流。<br>穿越灰岩盆地，摧毁东北方的敌军指挥部。</p><div class="briefing" id="briefing"><div><span>01</span><p><b>发展经济</b><small>矿车自动采矿，建造电厂保障供电。</small></p></div><div><span>02</span><p><b>集结部队</b><small>建造战车工厂，生产坦克和侦察车。</small></p></div><div><span>03</span><p><b>指挥作战</b><small>左键框选，右键移动或攻击。A + 左键攻击推进。</small></p></div></div><div class="modal-actions"><button class="primary" id="start">开始行动 <span>→</span></button><button class="secondary" id="load" hidden>继续存档</button></div><div class="modal-note">原创简化 RTS · 完全离线 · 建议使用鼠标及桌面浏览器</div></section></div>
+  <script src="engine.js"></script><script src="game.js"></script>
+</body>
+</html>
