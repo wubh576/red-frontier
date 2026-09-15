@@ -894,3 +894,67 @@ kbd {
     gap: 12px;
   }
 }
+/* Skirmish setup and expanded roster. */
+.modal {
+  max-height: 92vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.match-setup {
+  margin: 18px 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.match-setup label {
+  display: block;
+  font-size: 11px;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+.match-setup label small {
+  color: var(--muted);
+  font-size: 9px;
+  margin-left: 8px;
+}
+.match-setup select,
+.match-setup input {
+  width: 100%;
+  border: 1px solid #536345;
+  background: #121d16;
+  color: #dce6c1;
+  border-radius: 0;
+  padding: 10px 11px;
+  font: inherit;
+  font-size: 11px;
+}
+.match-setup p {
+  color: var(--muted);
+  font-size: 10px;
+  margin: 8px 0 14px;
+}
+.match-setup #setup-error {
+  color: var(--red);
+  margin-bottom: 0;
+}
+.match-setup :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#build-list {
+  max-height: 260px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+#queue {
+  max-height: 88px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+@media (max-height: 800px) {
+  #build-list {
+    max-height: 152px;
+  }
+  .modal .briefing {
+    display: none;
+  }
+}

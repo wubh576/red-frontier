@@ -1,8 +1,19 @@
 /* Canvas artwork, input and UI. Assets are generated locally at startup. */
 (() => {
   "use strict";
-  const { Game, TYPES, TILE, COLS, ROWS, WIDTH, HEIGHT, clamp, dist, cell } =
-    RTS;
+  const {
+    Game,
+    TYPES,
+    DIFFICULTIES,
+    TILE,
+    COLS,
+    ROWS,
+    WIDTH,
+    HEIGHT,
+    clamp,
+    dist,
+    cell,
+  } = RTS;
   const $ = (id) => document.getElementById(id);
   const canvas = $("battle"),
     ctx = canvas.getContext("2d"),
@@ -78,7 +89,7 @@
     c.stroke();
   }
   function makeTerrain() {
-    randomSeed = 7;
+    randomSeed = game.seed;
     tc.fillStyle = "#5a6246";
     tc.fillRect(0, 0, WIDTH, HEIGHT);
     const colors = ["#60674a", "#586044", "#63694c", "#565e43", "#5e6547"];
@@ -91,32 +102,25 @@
         tc.strokeRect(x * TILE, y * TILE, TILE, TILE);
       }
     // Weathered service roads connect both ends of the basin.
-    const road = [
-      [280, 1430],
-      [700, 1040],
-      [1030, 1040],
-      [1280, 690],
-      [1630, 760],
-      [2030, 690],
-      [2140, 340],
-    ];
-    for (const [width, color] of [
-      [105, "#727456"],
-      [80, "#7a7a5a"],
-      [65, "#78775a"],
-    ]) {
-      tc.lineWidth = width;
-      tc.strokeStyle = color;
-      tc.lineJoin = "round";
-      tc.beginPath();
-      road.forEach(([x, y], i) => (i ? tc.lineTo(x, y) : tc.moveTo(x, y)));
+    for (const road of game.roads) {
+      for (const [width, color] of [
+        [105, "#727456"],
+        [80, "#7a7a5a"],
+        [65, "#78775a"],
+      ]) {
+        tc.lineWidth = width;
+        tc.strokeStyle = color;
+        tc.lineJoin = "round";
+        tc.beginPath();
+        road.forEach(([x, y], i) => (i ? tc.lineTo(x, y) : tc.moveTo(x, y)));
+        tc.stroke();
+      }
+      tc.setLineDash([3, 15]);
+      tc.strokeStyle = "#c8c19833";
+      tc.lineWidth = 2;
       tc.stroke();
+      tc.setLineDash([]);
     }
-    tc.setLineDash([3, 15]);
-    tc.strokeStyle = "#c8c19833";
-    tc.lineWidth = 2;
-    tc.stroke();
-    tc.setLineDash([]);
     for (let i = 0; i < 24000; i++) {
       const x = random() * WIDTH,
         y = random() * HEIGHT;
@@ -389,6 +393,38 @@
       line(ctx, -21, -26, -21, -49, "#b3b69a", 4);
       line(ctx, -21, -49, 18, -49, "#b3b69a", 4);
       line(ctx, 18, -49, 18, -25, "#b3b69a", 3);
+    } else if (e.type === "barracks") {
+      roof(-34, -31, 68, 61, t.base, t.light);
+      polygon(
+        ctx,
+        [
+          [-37, -16],
+          [0, -42],
+          [37, -16],
+          [0, -7],
+        ],
+        t.light,
+        t.dark,
+      );
+      ctx.fillStyle = t.dark;
+      ctx.fillRect(-10, 7, 20, 26);
+      ctx.fillStyle = "#d7d3a3";
+      ctx.fillRect(-29, -3, 11, 9);
+      ctx.fillRect(18, -3, 11, 9);
+      line(ctx, 32, 24, 32, -55, "#c3c9a3", 2);
+      polygon(
+        ctx,
+        [
+          [32, -55],
+          [52, -49],
+          [32, -40],
+        ],
+        t.stripe,
+      );
+      ctx.fillStyle = t.light;
+      ctx.font = "bold 10px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("INF", 0, -14);
     } else if (e.type === "factory") {
       roof(-55, -49, 110, 89, t.base, t.light);
       roof(-46, -49, 92, 37, "#8a9379", "#b0b598");
@@ -437,7 +473,45 @@
     }
     ctx.restore();
   }
+  function drawInfantry(e) {
+    const t = teamColors[e.team],
+      rocket = e.type === "rocket";
+    const stride = e.path.length ? Math.sin(e.traveled * 0.24) * 3 : 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.fillStyle = "#17261c77";
+    ctx.beginPath();
+    ctx.ellipse(3, 7, 10, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.rotate(e.turretAngle);
+    line(ctx, -5, -4, -10 - stride, -5, "#293e30", 4);
+    line(ctx, -5, 4, -10 + stride, 5, "#293e30", 4);
+    ctx.fillStyle = t.base;
+    ctx.fillRect(-7, -6, 12, 12);
+    ctx.fillStyle = t.stripe;
+    ctx.fillRect(-5, -6, 7, 3);
+    circle(ctx, 2, 0, 5, t.light, t.dark);
+    circle(ctx, 3, -1, 3, t.base);
+    line(
+      ctx,
+      4,
+      4,
+      rocket ? 18 : 15,
+      4,
+      rocket ? "#b3ab76" : "#233b30",
+      rocket ? 5 : 3,
+    );
+    if (rocket) {
+      ctx.fillStyle = "#dcd3a1";
+      ctx.fillRect(15, 1, 4, 6);
+    }
+    ctx.restore();
+  }
   function drawUnit(e) {
+    if (TYPES[e.type].infantry) {
+      drawInfantry(e);
+      return;
+    }
     const t = teamColors[e.team],
       miner = e.type === "harvester",
       scout = e.type === "scout",
@@ -758,8 +832,8 @@
   function renderCards() {
     const list =
       activeTab === "buildings"
-        ? ["power", "refinery", "factory", "turret"]
-        : ["tank", "scout", "harvester"];
+        ? ["power", "barracks", "refinery", "factory", "turret"]
+        : ["rifle", "rocket", "tank", "scout", "harvester"];
     $("build-list").innerHTML = list
       .map((type) => {
         const d = TYPES[type];
@@ -793,6 +867,7 @@
     const list = [
       ...game.queue.building.map((q, i) => ({ ...q, i, kind: "building" })),
       ...game.queue.unit.map((q, i) => ({ ...q, i, kind: "unit" })),
+      ...game.queue.infantry.map((q, i) => ({ ...q, i, kind: "infantry" })),
     ];
     const signature = list
       .map((q) => `${q.kind}:${q.i}:${q.type}:${q.progress >= 1}`)
@@ -832,13 +907,17 @@
         const label = row.querySelector(".progress-label");
         if (label) label.textContent = `${Math.round(list[i].progress * 100)}%`;
         row.title =
-          list[i].kind === "unit" && !game.owned("factory").length
-            ? "工厂已被摧毁，重建后继续生产"
+          list[i].kind !== "building" &&
+          !game.owned(game.producer(list[i].type)).length
+            ? `${TYPES[game.producer(list[i].type)].name}已被摧毁，重建后继续生产`
             : "点击 × 取消并全额退款";
       });
   }
 
   function updateUI() {
+    $("match-mode").textContent = `${game.rules.name} · 离线`;
+    $("map-seed-label").textContent = `地图种子 #${game.seed}`;
+    $("fps").textContent = `${game.rules.name.toUpperCase()} · #${game.seed}`;
     $("credits").textContent = Math.floor(game.money[0]).toLocaleString(
       "en-US",
     );
@@ -869,8 +948,8 @@
           ? "战斗已暂停"
           : "指挥链路正常";
     $("objective-detail").textContent =
-      game.time < 85
-        ? `首波敌军预计 ${Math.ceil(85 - game.time)} 秒后出动`
+      game.wave === 0
+        ? `首波敌军预计 ${Math.ceil(game.nextWave - game.time)} 秒后出动`
         : `敌军已发动 ${game.wave} 波进攻 · 击毁 ${game.kills} 个目标`;
     for (const b of $("build-list").querySelectorAll("button")) {
       const d = TYPES[b.dataset.type],
@@ -881,7 +960,7 @@
         !started ||
         paused ||
         (game.money[0] < d.cost && !ready) ||
-        (!d.building && !game.owned("factory").length);
+        (!d.building && !game.owned(game.producer(b.dataset.type)).length);
       b.classList.toggle("locked", locked);
       b.classList.toggle("ready", ready);
       b.querySelector(".cost").textContent = ready ? "就绪 ↗" : `$ ${d.cost}`;
@@ -1101,7 +1180,7 @@
       event.metaKey ||
       event.ctrlKey ||
       event.altKey ||
-      ["INPUT", "TEXTAREA"].includes(event.target.tagName)
+      ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName)
     )
       return;
     const key = event.key.toLowerCase();
@@ -1187,6 +1266,8 @@
     $("modal-description").innerHTML = description;
     $("start").innerHTML = `${button} <span>→</span>`;
     $("briefing").hidden = mode !== "intro";
+    $("match-setup").hidden = !["intro", "restart", "end"].includes(mode);
+    $("setup-error").hidden = true;
     $("modal").hidden = false;
     $("modal").querySelector(".secondary")?.remove();
     if (mode === "restart") {
@@ -1208,7 +1289,26 @@
     updateUI();
   }
   function newGame() {
-    game = new Game();
+    const value = $("seed-input").value.trim();
+    if (value && (!/^\d+$/.test(value) || Number(value) > 4294967295)) {
+      $("setup-error").textContent =
+        "请输入 0 到 4294967295 之间的整数，或留空随机。";
+      $("setup-error").hidden = false;
+      $("seed-input").focus();
+      return;
+    }
+    game = new Game({
+      seed: value ? Number(value) : undefined,
+      difficulty: $("difficulty").value,
+    });
+    makeTerrain();
+    activeTab = "buildings";
+    document
+      .querySelectorAll("[data-tab]")
+      .forEach((b) =>
+        b.classList.toggle("active", b.dataset.tab === activeTab),
+      );
+    renderCards();
     selected.clear();
     placing = attackMode = false;
     endShown = false;
@@ -1217,7 +1317,7 @@
     camera.zoom = 0.9;
     home();
     resume();
-    toast("指挥官，基地已就绪。先建造战车工厂。");
+    toast("基地已就绪：建兵营训练步兵，或建战车工厂。");
   }
   $("start").addEventListener("click", () => {
     if (modalMode === "help") {
@@ -1237,7 +1337,7 @@
     showModal(
       "help",
       "指挥手册",
-      "<b>选择</b>：左键单选 / 拖动框选 / Shift 增选。<br><b>指挥</b>：右键移动、攻击敌人或让矿车采矿。<br><b>攻击推进</b>：按 A，再左键点击目标位置。<br><b>快捷键</b>：Q 全选战斗部队 · S 停止 · H 回基地。<br><b>视角</b>：方向键 / 中键拖动 / 小地图定位，滚轮缩放。<br><b>建设</b>：点击建筑，完成后点击「部署」，再选择空地。<br><b>电力</b>：供电低于用电时，生产减速、炮塔停火。<br><b>新一局</b>：刷新页面或重新开始；没有存档。",
+      "<b>选择</b>：左键单选 / 拖动框选 / Shift 增选。<br><b>指挥</b>：右键移动、攻击敌人或让矿车采矿。<br><b>攻击推进</b>：按 A，再左键点击目标位置。<br><b>快捷键</b>：Q 全选战斗部队 · S 停止 · H 回基地。<br><b>视角</b>：方向键 / 中键拖动 / 小地图定位，滚轮缩放。<br><b>建设</b>：点击建筑，完成后点击「部署」，再选择空地。<br><b>电力</b>：供电低于用电时，生产减速、炮塔停火。<br><b>步兵</b>：兵营训练步枪兵和反坦克兵，与战车独立排队。<br><b>新一局</b>：可选难度，种子留空随机；没有存档。",
       started ? "返回战斗" : "返回任务介绍",
     ),
   );
@@ -1245,7 +1345,7 @@
     showModal(
       "restart",
       "重新部署？",
-      "当前战局将被重置。<br>基地、资金和敌军会恢复到开局状态。",
+      "当前战局将被重置。<br>选择难度；种子留空生成新地图，填写本局种子可重玩。",
       "开始新一局",
     ),
   );
@@ -1288,6 +1388,10 @@
     draw();
     requestAnimationFrame(frame);
   }
+  $("difficulty").addEventListener("change", () => {
+    $("difficulty-note").textContent =
+      DIFFICULTIES[$("difficulty").value].description;
+  });
   new ResizeObserver(resize).observe(canvas);
   window.addEventListener("resize", resize);
   renderCards();

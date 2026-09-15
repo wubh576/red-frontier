@@ -19,18 +19,18 @@ function placeReady(game, type) {
 }
 
 test("new matches start with fresh resources and independent state", () => {
-  const a = new Game();
+  const a = new Game({ seed: 7 });
   a.money[0] = 0;
   a.owned("hq")[0].hp = 1;
   a.ore[0].amount = 0;
-  const b = new Game();
+  const b = new Game({ seed: 7 });
   assert.equal(b.money[0], 2400);
   assert.equal(b.owned("hq")[0].hp, TYPES.hq.hp);
-  assert.equal(b.ore[0].amount, 18000);
+  assert.equal(b.ore[0].amount, 20000);
   assert.equal(b.time, 0);
 });
 test("harvesters deliver finite ore and mining stops without a refinery", () => {
-  const g = quiet(new Game()),
+  const g = quiet(new Game({ seed: 7 })),
     amount = g.ore.reduce((s, o) => s + o.amount, 0);
   advance(g, 40);
   assert.ok(g.money[0] > 2400);
@@ -42,7 +42,7 @@ test("harvesters deliver finite ore and mining stops without a refinery", () => 
   assert.equal(g.money[0], money);
 });
 test("construction spends once, blocks overlaps, completes and deploys", () => {
-  const g = quiet(new Game());
+  const g = quiet(new Game({ seed: 7 }));
   assert.equal(g.enqueue("factory"), null);
   assert.equal(g.money[0], 1500);
   assert.ok(g.enqueue("power"));
@@ -60,7 +60,7 @@ test("construction spends once, blocks overlaps, completes and deploys", () => {
   assert.equal(g.canPlace("factory", 2100, 1300), false);
 });
 test("production requires a factory, supports queuing and refunds cancellations", () => {
-  const g = quiet(new Game());
+  const g = quiet(new Game({ seed: 7 }));
   assert.ok(g.enqueue("tank"));
   assert.equal(g.money[0], 2400);
   g.add("factory", 0, 792, 1176);
@@ -75,7 +75,7 @@ test("production requires a factory, supports queuing and refunds cancellations"
   assert.equal(g.blocked()[cell(spawned.x, spawned.y)], 0);
 });
 test("losing the factory pauses the unit queue until a replacement exists", () => {
-  const g = quiet(new Game());
+  const g = quiet(new Game({ seed: 7 }));
   const factory = g.add("factory", 0, 792, 1176);
   g.enqueue("tank");
   advance(g, 2);
@@ -89,7 +89,7 @@ test("losing the factory pauses the unit queue until a replacement exists", () =
   assert.equal(g.queue.unit.length, 0);
 });
 test("power shortages slow production and disable defensive turrets", () => {
-  const g = quiet(new Game());
+  const g = quiet(new Game({ seed: 7 }));
   g.entities = g.entities.filter((e) => e.type !== "power");
   g.invalidateNav();
   g.add("factory", 0, 792, 1176);
@@ -109,7 +109,7 @@ test("power shortages slow production and disable defensive turrets", () => {
   assert.ok(turret.hp > 0);
 });
 test("pathfinding routes around mountains and buildings without corner cutting", () => {
-  const g = quiet(new Game()),
+  const g = quiet(new Game({ seed: 7 })),
     from = { x: 600, y: 648 },
     to = { x: 1200, y: 648 },
     path = g.pathfind(from, to);
@@ -137,7 +137,7 @@ test("pathfinding routes around mountains and buildings without corner cutting",
   assert.ok(Math.hypot(tank.x - to.x, tank.y - to.y) < 50);
 });
 test("formation movement reaches the destination and stop cancels movement", () => {
-  const g = quiet(new Game()),
+  const g = quiet(new Game({ seed: 7 })),
     units = g.owned("tank"),
     ids = units.map((e) => e.id);
   g.command(ids, "move", { x: 800, y: 1050 });
@@ -155,7 +155,7 @@ test("formation movement reaches the destination and stop cancels movement", () 
   );
 });
 test("projectiles deal damage and headquarters destruction ends the match", () => {
-  const g = quiet(new Game()),
+  const g = quiet(new Game({ seed: 7 })),
     hq = g.owned("hq", 1)[0];
   hq.hp = 25;
   const tank = g.add("tank", 0, hq.x - 240, hq.y);
@@ -166,13 +166,13 @@ test("projectiles deal damage and headquarters destruction ends the match", () =
   const time = g.time;
   advance(g, 10);
   assert.equal(g.time, time);
-  const defeat = quiet(new Game());
+  const defeat = quiet(new Game({ seed: 7 }));
   defeat.owned("hq")[0].hp = 0;
   advance(defeat, 0.1);
   assert.equal(defeat.outcome, "defeat");
 });
 test("attack move engages enemies and ordinary movement can retreat", () => {
-  const g = quiet(new Game()),
+  const g = quiet(new Game({ seed: 7 })),
     unit = g.owned("tank")[0];
   const enemy = g.add("tank", 1, unit.x + 200, unit.y);
   enemy.order = { kind: "hold" };
@@ -187,7 +187,7 @@ test("attack move engages enemies and ordinary movement can retreat", () => {
   assert.ok(unit.x < x - 30);
 });
 test("fog reveals explored terrain but hides enemies outside current sight", () => {
-  const g = quiet(new Game()),
+  const g = quiet(new Game({ seed: 7 })),
     enemy = g.owned("hq", 1)[0];
   assert.equal(g.isVisible(enemy), false);
   const scout = g.add("scout", 0, 1800, 300);
@@ -200,7 +200,7 @@ test("fog reveals explored terrain but hides enemies outside current sight", () 
   assert.equal(g.explored[cell(enemy.x, enemy.y)], 1);
 });
 test("AI has finite funds, produces units, dispatches waves and can win", () => {
-  const g = new Game();
+  const g = new Game({ seed: 7 });
   advance(g, 86);
   assert.equal(g.wave, 1);
   assert.ok(g.owned("tank", 1).some((e) => e.order?.kind === "attackmove"));
@@ -209,18 +209,18 @@ test("AI has finite funds, produces units, dispatches waves and can win", () => 
   assert.equal(g.outcome, "defeat");
 });
 
-test('a harvester follows a requested deposit and a new refinery includes a miner', () => {
-  const g = quiet(new Game());
-  const miner = g.owned('harvester')[0];
+test("a harvester follows a requested deposit and a new refinery includes a miner", () => {
+  const g = quiet(new Game({ seed: 7 }));
+  const miner = g.owned("harvester")[0];
   const requested = g.ore[3];
   const originalAmount = requested.amount;
-  g.command([miner.id], 'harvest', requested);
+  g.command([miner.id], "harvest", requested);
   advance(g, 30);
   assert.ok(requested.amount < originalAmount);
-  assert.equal(g.ore[0].amount, 18000);
-  assert.equal(g.enqueue('refinery'), null);
+  assert.equal(g.ore[0].amount, 20000);
+  assert.equal(g.enqueue("refinery"), null);
   advance(g, 14.1);
-  const count = g.owned('harvester').length;
-  assert.equal(placeReady(g, 'refinery').type, 'refinery');
-  assert.equal(g.owned('harvester').length, count + 1);
+  const count = g.owned("harvester").length;
+  assert.equal(placeReady(g, "refinery").type, "refinery");
+  assert.equal(g.owned("harvester").length, count + 1);
 });

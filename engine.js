@@ -56,6 +56,51 @@
       glyph: "⚒",
       desc: "解锁战车 · 耗电 70",
     },
+    barracks: {
+      name: "兵营",
+      building: true,
+      w: 2,
+      h: 2,
+      hp: 900,
+      cost: 400,
+      time: 7,
+      sight: 260,
+      draw: 20,
+      glyph: "⚑",
+      desc: "训练步兵 · 耗电 20",
+    },
+    rifle: {
+      name: "步枪兵",
+      infantry: true,
+      hp: 85,
+      cost: 100,
+      time: 3,
+      speed: 64,
+      sight: 300,
+      range: 160,
+      damage: 12,
+      reload: 0.55,
+      radius: 8,
+      glyph: "♟",
+      desc: "反步兵 · 兵营训练",
+      damageVs: { infantry: 1.6, vehicle: 0.25, building: 0.35 },
+    },
+    rocket: {
+      name: "反坦克兵",
+      infantry: true,
+      hp: 95,
+      cost: 220,
+      time: 5,
+      speed: 52,
+      sight: 300,
+      range: 240,
+      damage: 45,
+      reload: 2,
+      radius: 9,
+      glyph: "↗",
+      desc: "反装甲 · 兵营训练",
+      damageVs: { infantry: 0.25, vehicle: 1, building: 0.8 },
+    },
     turret: {
       name: "防御炮塔",
       building: true,
@@ -121,20 +166,83 @@
     x: ((i % COLS) + 0.5) * TILE,
     y: (Math.floor(i / COLS) + 0.5) * TILE,
   });
+  const DIFFICULTIES = {
+    easy: {
+      name: "简单",
+      credits: 3200,
+      enemyCredits: 1600,
+      firstWave: 120,
+      waveInterval: 70,
+      jitter: 10,
+      production: 17,
+      armyCap: 14,
+      waveBase: 2,
+      waveGrowth: 0.5,
+      waveCap: 6,
+      description: "开局 $3,200 · 首波 120 秒 · 敌军增援较慢",
+    },
+    normal: {
+      name: "标准",
+      credits: 2400,
+      enemyCredits: 2200,
+      firstWave: 85,
+      waveInterval: 55,
+      jitter: 8,
+      production: 12,
+      armyCap: 22,
+      waveBase: 3,
+      waveGrowth: 1,
+      waveCap: 10,
+      description: "开局 $2,400 · 首波 85 秒 · 均衡的进攻压力",
+    },
+    hard: {
+      name: "困难",
+      credits: 2000,
+      enemyCredits: 3000,
+      firstWave: 60,
+      waveInterval: 40,
+      jitter: 6,
+      production: 8,
+      armyCap: 30,
+      waveBase: 4,
+      waveGrowth: 1.3,
+      waveCap: 14,
+      description: "开局 $2,000 · 首波 60 秒 · 敌军集结更快",
+    },
+  };
+  function seededRandom(seed) {
+    let state = seed >>> 0;
+    return () => {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      return state / 4294967296;
+    };
+  }
   class Game {
-    constructor() {
+    constructor({
+      seed = Math.floor(Math.random() * 4294967296),
+      difficulty = "normal",
+    } = {}) {
+      if (!Number.isInteger(seed) || seed < 0 || seed > 4294967295)
+        throw new Error("地图种子必须是 0 到 4294967295 的整数");
+      if (!Object.hasOwn(DIFFICULTIES, difficulty)) throw new Error("未知难度");
+      this.seed = seed;
+      this.difficulty = difficulty;
+      this.rules = DIFFICULTIES[difficulty];
+      // Separate streams keep the same map identical across difficulty settings.
+      this.mapRandom = seededRandom(seed);
+      this.random = seededRandom(seed ^ 0x9e3779b9);
       this.time = 0;
-      this.money = [2400, 2200];
+      this.money = [this.rules.credits, this.rules.enemyCredits];
       this.entities = [];
       this.projectiles = [];
       this.effects = [];
       this.nextId = 1;
-      this.queue = { building: [], unit: [] };
+      this.queue = { building: [], unit: [], infantry: [] };
       this.events = [];
       this.outcome = null;
       this.kills = 0;
-      this.enemyProduction = 22;
-      this.nextWave = 85;
+      this.enemyProduction = this.rules.production * 1.8;
+      this.nextWave = this.rules.firstWave;
       this.wave = 0;
       this.terrain = new Array(COLS * ROWS).fill(0);
       this.explored = new Array(COLS * ROWS).fill(0);
@@ -142,29 +250,7 @@
       this.visionTimer = 0;
       this.navVersion = 0;
       this.navCache = null;
-      // Low rocky ridges leave several wide routes across the basin.
-      for (let y = 0; y < ROWS; y++)
-        for (let x = 0; x < COLS; x++) {
-          const ridges = [
-            [17, 12, 3.5, 5],
-            [29, 23, 4, 2.5],
-            [34, 11, 3, 2],
-            [8, 5, 4, 2],
-          ];
-          if (
-            ridges.some(
-              ([cx, cy, rx, ry]) =>
-                ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1,
-            )
-          )
-            this.terrain[y * COLS + x] = 1;
-        }
-      this.ore = [
-        { x: 600, y: 1248, amount: 18000 },
-        { x: 1800, y: 480, amount: 18000 },
-        { x: 1104, y: 864, amount: 24000 },
-        { x: 336, y: 480, amount: 12000 },
-      ];
+      this.generateMap();
       this.add("hq", 0, 312, 1176);
       this.add("power", 0, 192, 1008);
       this.add("refinery", 0, 504, 1080);
@@ -176,10 +262,182 @@
       this.add("refinery", 1, 1800, 312);
       this.add("factory", 1, 2040, 504);
       this.add("turret", 1, 1872, 648);
+      this.add("barracks", 1, 2208, 480);
       this.add("harvester", 1, 1752, 432);
       this.add("tank", 1, 1800, 696);
       this.add("tank", 1, 2088, 696);
       this.updateVision();
+    }
+    generateMap() {
+      const rng = this.mapRandom;
+      const integer = (min, max) => min + Math.floor(rng() * (max - min + 1));
+      // Starting base footprints are stable; neutral terrain and routes vary.
+      const ridges = Array.from({ length: 9 }, () => [
+        integer(13, 35),
+        integer(5, 26),
+        1.5 + rng() * 2.3,
+        1.4 + rng() * 3,
+      ]);
+      ridges.push([integer(5, 10), integer(4, 9), 2 + rng() * 2, 1.5 + rng()]);
+      for (let y = 0; y < ROWS; y++)
+        for (let x = 0; x < COLS; x++) {
+          if (
+            ridges.some(
+              ([cx, cy, rx, ry]) =>
+                ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1,
+            )
+          )
+            this.terrain[y * COLS + x] = 1;
+        }
+      const clear = (cx, cy, radius) => {
+        for (
+          let y = Math.max(0, cy - radius);
+          y <= Math.min(ROWS - 1, cy + radius);
+          y++
+        )
+          for (
+            let x = Math.max(0, cx - radius);
+            x <= Math.min(COLS - 1, cx + radius);
+            x++
+          )
+            this.terrain[y * COLS + x] = 0;
+      };
+      const carve = (points) => {
+        for (let i = 1; i < points.length; i++) {
+          let [x, y] = points[i - 1];
+          const [tx, ty] = points[i];
+          clear(x, y, 1);
+          while (x !== tx || y !== ty) {
+            x += Math.sign(tx - x);
+            y += Math.sign(ty - y);
+            clear(x, y, 1);
+          }
+        }
+      };
+      // Broad starter areas prevent impassable spawn or construction locations.
+      for (let y = 16; y < ROWS; y++)
+        for (let x = 1; x < 17; x++) this.terrain[y * COLS + x] = 0;
+      for (let y = 1; y < 16; y++)
+        for (let x = 34; x < COLS; x++) this.terrain[y * COLS + x] = 0;
+      const midX = integer(21, 26),
+        midY = integer(15, 20);
+      const mainRoute = [
+        [12, 25],
+        [17, integer(20, 25)],
+        [midX, midY],
+        [32, integer(13, 17)],
+        [38, 14],
+      ];
+      const flankRoute = [
+        [10, 18],
+        [integer(12, 15), 7],
+        [26, integer(6, 9)],
+        [38, 10],
+      ];
+      carve(mainRoute);
+      carve(flankRoute);
+      this.roads = [mainRoute, flankRoute].map((route) =>
+        route.map(([x, y]) => [(x + 0.5) * TILE, (y + 0.5) * TILE]),
+      );
+      const starterAmount = integer(16, 20) * 1000;
+      this.ore = [
+        {
+          x: integer(12, 14) * TILE + 24,
+          y: integer(26, 27) * TILE + 24,
+          amount: starterAmount,
+        },
+        {
+          x: integer(35, 37) * TILE + 24,
+          y: integer(10, 11) * TILE + 24,
+          amount: starterAmount,
+        },
+        {
+          x: (midX + 0.5) * TILE,
+          y: (midY + 0.5) * TILE,
+          amount: integer(22, 30) * 1000,
+        },
+        {
+          x: integer(6, 9) * TILE + 24,
+          y: integer(9, 12) * TILE + 24,
+          amount: integer(12, 18) * 1000,
+        },
+        {
+          x: integer(29, 34) * TILE + 24,
+          y: integer(25, 28) * TILE + 24,
+          amount: integer(16, 22) * 1000,
+        },
+      ];
+      for (const ore of this.ore) {
+        const x = Math.floor(ore.x / TILE),
+          y = Math.floor(ore.y / TILE);
+        clear(x, y, 2);
+        carve([
+          [x, y],
+          [midX, midY],
+        ]);
+      }
+      // Connect every free terrain region to the base. This also covers pockets
+      // created when several random ridges overlap; no ore or flank is isolated.
+      const start = 25 * COLS + 12;
+      const reachable = () => {
+        const seen = new Set([start]),
+          todo = [start];
+        for (let i = 0; i < todo.length; i++) {
+          const n = todo[i],
+            x = n % COLS,
+            y = Math.floor(n / COLS);
+          for (const [dx, dy] of [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ]) {
+            const nx = x + dx,
+              ny = y + dy,
+              next = ny * COLS + nx;
+            if (
+              nx >= 0 &&
+              ny >= 0 &&
+              nx < COLS &&
+              ny < ROWS &&
+              !this.terrain[next] &&
+              !seen.has(next)
+            ) {
+              seen.add(next);
+              todo.push(next);
+            }
+          }
+        }
+        return seen;
+      };
+      let seen = reachable();
+      for (let i = 0; i < this.terrain.length; i++)
+        if (!this.terrain[i] && !seen.has(i)) {
+          carve([
+            [i % COLS, Math.floor(i / COLS)],
+            [midX, midY],
+          ]);
+          seen = reachable();
+        }
+    }
+    producer(type) {
+      return TYPES[type]?.infantry ? "barracks" : "factory";
+    }
+    queueKind(type) {
+      return TYPES[type]?.building
+        ? "building"
+        : TYPES[type]?.infantry
+          ? "infantry"
+          : "unit";
+    }
+    damageFor(type, targetType) {
+      const target = TYPES[targetType],
+        category = target.building
+          ? "building"
+          : target.infantry
+            ? "infantry"
+            : "vehicle";
+      return TYPES[type].damage * (TYPES[type].damageVs?.[category] ?? 1);
     }
     add(type, team, x, y) {
       const def = TYPES[type];
@@ -330,18 +588,22 @@
       if (this.outcome) return "战斗已结束";
       const d = TYPES[type];
       if (!d || !d.cost) return "无法生产";
-      const queue = d.building ? this.queue.building : this.queue.unit;
+      const kind = this.queueKind(type),
+        queue = this.queue[kind];
       if (d.building && queue.length) return "已有建筑正在建造或等待部署";
-      if (!d.building && !this.owned("factory").length)
-        return "请先建造战车工厂";
-      if (!d.building && queue.length >= 8) return "生产队列已满（最多 8 辆）";
+      if (!d.building && !this.owned(this.producer(type)).length)
+        return `请先建造${TYPES[this.producer(type)].name}`;
+      const limit = d.infantry ? 12 : 8;
+      if (!d.building && queue.length >= limit)
+        return `生产队列已满（最多 ${limit} 个单位）`;
       if (
         !d.building &&
         this.owned().filter((e) => !TYPES[e.type].building).length +
-          queue.length >=
+          this.queue.unit.length +
+          this.queue.infantry.length >=
           60
       )
-        return "部队已达上限（60 辆）";
+        return "部队已达上限（60 个单位）";
       if (this.money[0] < d.cost) return "资金不足，等待矿车运回矿石";
       this.money[0] -= d.cost;
       queue.push({ type, progress: 0 });
@@ -609,11 +871,13 @@
       this.time += dt;
       this.effects.forEach((e) => (e.life -= dt));
       this.effects = this.effects.filter((e) => e.life > 0);
-      for (const kind of ["building", "unit"]) {
+      for (const kind of ["building", "unit", "infantry"]) {
         const q = this.queue[kind],
           item = q[0];
         if (!item) continue;
-        if (kind === "unit" && !this.owned("factory").length) continue;
+        const producer =
+          kind === "building" ? null : this.owned(this.producer(item.type))[0];
+        if (kind !== "building" && !producer) continue;
         const wasReady = item.progress >= 1;
         item.progress = Math.min(
           1,
@@ -622,41 +886,75 @@
         );
         if (item.progress >= 1 && !wasReady && kind === "building")
           this.event("建筑就绪，请选择位置部署", "build");
-        if (item.progress >= 1 && kind === "unit") {
-          this.spawnAt(item.type, 0, this.owned("factory")[0]);
+        if (item.progress >= 1 && kind !== "building") {
+          this.spawnAt(item.type, 0, producer);
           this.event(`${TYPES[item.type].name}已就绪`, "unit");
           q.shift();
         }
       }
       this.enemyProduction -= dt;
       if (this.enemyProduction <= 0) {
-        this.enemyProduction = this.powered(1) ? 12 : 30;
-        const factory = this.owned("factory", 1)[0],
-          army = this.owned(null, 1).filter((e) => !TYPES[e.type].building);
-        if (factory && army.length < 22) {
-          const type =
-            !this.owned("harvester", 1).length &&
-            this.owned("refinery", 1).length
-              ? "harvester"
-              : this.wave % 3 === 2
-                ? "scout"
-                : "tank";
-          if (this.money[1] >= TYPES[type].cost) {
-            this.money[1] -= TYPES[type].cost;
-            this.spawnAt(type, 1, factory);
-          }
+        this.enemyProduction =
+          (this.rules.production * (0.85 + this.random() * 0.3)) /
+          (this.powered(1) ? 1 : 0.35);
+        const army = this.owned(null, 1).filter((e) => !TYPES[e.type].building);
+        const pool = [
+          "tank",
+          "tank",
+          "scout",
+          "rifle",
+          "rifle",
+          "rocket",
+        ].filter(
+          (type) =>
+            this.owned(this.producer(type), 1).length &&
+            this.money[1] >= TYPES[type].cost,
+        );
+        const needsMiner =
+          !this.owned("harvester", 1).length &&
+          this.owned("refinery", 1).length &&
+          this.owned("factory", 1).length &&
+          this.money[1] >= TYPES.harvester.cost;
+        const type = needsMiner
+          ? "harvester"
+          : pool[Math.floor(this.random() * pool.length)];
+        if (type && army.length < this.rules.armyCap) {
+          this.money[1] -= TYPES[type].cost;
+          this.spawnAt(type, 1, this.owned(this.producer(type), 1)[0]);
         }
       }
       if (this.time >= this.nextWave) {
-        this.nextWave += 55;
+        this.nextWave +=
+          this.rules.waveInterval + (this.random() * 2 - 1) * this.rules.jitter;
         this.wave++;
         const hq = this.owned("hq")[0];
-        if (hq)
-          this.owned(null, 1)
-            .filter((e) => !TYPES[e.type].building && e.type !== "harvester")
-            .slice(0, 3 + this.wave)
+        const targets = [
+          hq,
+          hq,
+          ...this.owned().filter((e) => TYPES[e.type].building),
+        ].filter(Boolean);
+        const target = targets[Math.floor(this.random() * targets.length)];
+        const army = this.owned(null, 1).filter(
+          (e) => !TYPES[e.type].building && e.type !== "harvester",
+        );
+        // Seeded shuffle varies composition without non-transitive random sorts.
+        for (let i = army.length - 1; i > 0; i--) {
+          const j = Math.floor(this.random() * (i + 1));
+          [army[i], army[j]] = [army[j], army[i]];
+        }
+        if (target)
+          army
+            .slice(
+              0,
+              Math.min(
+                this.rules.waveCap,
+                Math.floor(
+                  this.rules.waveBase + this.wave * this.rules.waveGrowth,
+                ),
+              ),
+            )
             .forEach((e) => {
-              e.order = { kind: "attackmove", x: hq.x, y: hq.y };
+              e.order = { kind: "attackmove", x: target.x, y: target.y };
               e.routeTimer = 0;
             });
         this.event(`侦测到敌军第 ${this.wave} 波进攻`, "warning");
@@ -710,7 +1008,7 @@
               x: e.x,
               y: e.y,
               target: target.id,
-              damage: d.damage,
+              damage: this.damageFor(e.type, target.type),
               team: e.team,
               life: 3,
             });
@@ -810,6 +1108,7 @@
   const api = {
     Game,
     TYPES,
+    DIFFICULTIES,
     TILE,
     COLS,
     ROWS,

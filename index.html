@@ -47,10 +47,11 @@
           ></canvas>
           <div class="map-label">
             <span>SECTOR 07</span><b>灰岩盆地</b
-            ><small>38° 42′ N · 69° 18′ E</small>
+            ><small id="map-seed-label">随机战场</small>
           </div>
           <div class="battle-top">
-            <span class="tag">离线单人</span><span id="clock">00:00</span
+            <span class="tag" id="match-mode">标准 · 离线</span
+            ><span id="clock">00:00</span
             ><button id="sound" title="切换音效">音效 关</button>
           </div>
           <div id="toast" role="status" aria-live="polite"></div>
@@ -126,7 +127,7 @@
         </aside>
       </main>
       <footer class="bottom-bar">
-        <span><b>RF</b> FIELD COMMAND SYSTEM <em>v0.1</em></span
+        <span><b>RF</b> FIELD COMMAND SYSTEM <em>v0.2</em></span
         ><span
           >框选部队 <kbd>拖动</kbd> 攻击移动 <kbd>A + 左键</kbd> 回到基地
           <kbd>H</kbd> 暂停 <kbd>Space</kbd></span
@@ -156,7 +157,7 @@
           <div>
             <span>02</span>
             <p>
-              <b>集结部队</b><small>建造战车工厂，生产坦克和侦察车。</small>
+              <b>集结部队</b><small>建造兵营训练步兵，或建工厂生产战车。</small>
             </p>
           </div>
           <div>
@@ -166,6 +167,27 @@
               ><small>左键框选，右键移动或攻击。A + 左键攻击推进。</small>
             </p>
           </div>
+        </div>
+        <div class="match-setup" id="match-setup">
+          <label for="difficulty">作战难度</label>
+          <select id="difficulty">
+            <option value="easy">简单 · 新手练习</option>
+            <option value="normal" selected>标准 · 均衡遭遇战</option>
+            <option value="hard">困难 · 高压进攻</option>
+          </select>
+          <p id="difficulty-note">开局 $2,400 · 首波 85 秒 · 均衡的进攻压力</p>
+          <label for="seed-input"
+            >地图种子 <small>选填 · 留空每局随机</small></label
+          >
+          <input
+            id="seed-input"
+            type="text"
+            inputmode="numeric"
+            maxlength="10"
+            placeholder="留空生成新地图，填相同数字重玩地图"
+            autocomplete="off"
+          />
+          <p id="setup-error" role="alert" hidden></p>
         </div>
         <div class="modal-actions">
           <button class="primary" id="start">开始行动 <span>→</span></button>
