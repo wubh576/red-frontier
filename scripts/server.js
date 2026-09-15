@@ -3,12 +3,13 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const projectRoot = path.resolve(__dirname, "..");
 const files = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/index.html", ["index.html", "text/html; charset=utf-8"]],
-  ["/style.css", ["style.css", "text/css; charset=utf-8"]],
-  ["/engine.js", ["engine.js", "text/javascript; charset=utf-8"]],
-  ["/game.js", ["game.js", "text/javascript; charset=utf-8"]],
+  ["/styles/game.css", ["styles/game.css", "text/css; charset=utf-8"]],
+  ["/src/engine.js", ["src/engine.js", "text/javascript; charset=utf-8"]],
+  ["/src/game.js", ["src/game.js", "text/javascript; charset=utf-8"]],
 ]);
 const port = Number(process.env.PORT || 8765);
 if (!Number.isInteger(port) || port < 1 || port > 65535)
@@ -33,7 +34,7 @@ const server = http.createServer((req, res) => {
     res.end("Not found");
     return;
   }
-  fs.readFile(path.join(__dirname, file[0]), (error, content) => {
+  fs.readFile(path.join(projectRoot, file[0]), (error, content) => {
     if (error) {
       res.writeHead(500);
       res.end("Unable to read game files");

@@ -9,7 +9,7 @@ const {
   TILE,
   cell,
   center,
-} = require("../engine");
+} = require("../src/engine");
 function advance(game, seconds) {
   for (let i = 0; i < Math.ceil(seconds * 30); i++) game.tick(1 / 30);
 }

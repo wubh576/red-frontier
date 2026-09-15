@@ -4,9 +4,9 @@
   "private": true,
   "description": "An offline single-player browser RTS",
   "scripts": {
-    "start": "node server.js",
+    "start": "node scripts/server.js",
     "test": "node --test tests/*.test.js",
-    "check": "node --check engine.js && node --check game.js && node --check server.js"
+    "check": "node --check src/engine.js && node --check src/game.js && node --check scripts/server.js"
   },
   "engines": {
     "node": ">=18"

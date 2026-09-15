@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { Game, TYPES, TILE, COLS, ROWS, cell } = require("../engine");
+const { Game, TYPES, TILE, COLS, ROWS, cell } = require("../src/engine");
 const advance = (game, seconds) => {
   for (let i = 0; i < Math.ceil(seconds * 30); i++) game.tick(1 / 30);
 };
