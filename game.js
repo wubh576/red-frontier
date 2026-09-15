@@ -845,19 +845,12 @@
       .forEach((button) =>
         button.addEventListener("click", () => {
           if (!started || paused || game.outcome) return;
-          const type = button.dataset.type,
-            item = game.queue.building[0];
-          if (item?.type === type && item.progress >= 1) {
-            placing = true;
-            attackMode = false;
-            toast("在基地附近选择空地部署；右键取消部署模式");
-          } else {
-            const error = game.enqueue(type);
-            if (error) toast(error);
-            else {
-              beep("build");
-              toast(`${TYPES[type].name}已加入队列`);
-            }
+          const type = button.dataset.type;
+          const error = game.enqueue(type);
+          if (error) toast(error);
+          else {
+            beep("build");
+            toast(`${TYPES[type].name}已加入队列；可点「取消」退款`);
           }
           updateUI();
         }),
@@ -869,6 +862,9 @@
       ...game.queue.unit.map((q, i) => ({ ...q, i, kind: "unit" })),
       ...game.queue.infantry.map((q, i) => ({ ...q, i, kind: "infantry" })),
     ];
+    $("queue-summary").hidden = list.length === 0;
+    $("queue-summary").textContent =
+      `建筑 ${game.queue.building.length}/8 · 战车 ${game.queue.unit.length}/8 · 步兵 ${game.queue.infantry.length}/12`;
     const signature = list
       .map((q) => `${q.kind}:${q.i}:${q.type}:${q.progress >= 1}`)
       .join("|");
@@ -877,7 +873,7 @@
       $("queue").innerHTML = list
         .map(
           (q) =>
-            `<div class="queue-row"><span>${TYPES[q.type].name}</span><div class="queue-progress"><i></i></div>${q.kind === "building" && q.progress >= 1 ? '<button class="deploy">部署 ↗</button>' : '<span class="progress-label"></span>'}<button data-kind="${q.kind}" data-index="${q.i}" title="取消并全额退款" aria-label="取消${TYPES[q.type].name}并退款">×</button></div>`,
+            `<div class="queue-row"><span>${TYPES[q.type].name}</span><div class="queue-progress"><i></i></div>${q.kind === "building" && q.progress >= 1 ? '<button class="deploy">部署 ↗</button>' : '<span class="progress-label"></span>'}<button data-kind="${q.kind}" data-index="${q.i}" title="取消并退回 $${TYPES[q.type].cost}" aria-label="取消${TYPES[q.type].name}并退款">取消</button></div>`,
         )
         .join("");
       $("queue")
@@ -894,7 +890,8 @@
           b.addEventListener("click", () => {
             if (paused) return;
             game.cancel(b.dataset.kind, Number(b.dataset.index));
-            if (b.dataset.kind === "building") placing = false;
+            if (b.dataset.kind === "building" && Number(b.dataset.index) === 0)
+              placing = false;
             updateUI();
           }),
         );
@@ -905,12 +902,17 @@
         row.querySelector(".queue-progress i").style.width =
           `${Math.round(list[i].progress * 100)}%`;
         const label = row.querySelector(".progress-label");
-        if (label) label.textContent = `${Math.round(list[i].progress * 100)}%`;
+        if (label)
+          label.textContent =
+            list[i].i > 0 ? "排队中" : `${Math.round(list[i].progress * 100)}%`;
+        row.classList.toggle("waiting", list[i].i > 0);
         row.title =
           list[i].kind !== "building" &&
           !game.owned(game.producer(list[i].type)).length
             ? `${TYPES[game.producer(list[i].type)].name}已被摧毁，重建后继续生产`
-            : "点击 × 取消并全额退款";
+            : list[i].kind === "building" && list[i].i > 0
+              ? "前面的建筑部署或取消后，按顺序开始施工"
+              : "点击取消，全额退款";
       });
   }
 
@@ -953,17 +955,19 @@
         : `敌军已发动 ${game.wave} 波进攻 · 击毁 ${game.kills} 个目标`;
     for (const b of $("build-list").querySelectorAll("button")) {
       const d = TYPES[b.dataset.type],
-        ready =
-          game.queue.building[0]?.type === b.dataset.type &&
-          game.queue.building[0].progress >= 1;
+        q = game.queue[game.queueKind(b.dataset.type)];
+      const count = q.filter((item) => item.type === b.dataset.type).length;
       const locked =
         !started ||
         paused ||
-        (game.money[0] < d.cost && !ready) ||
+        game.money[0] < d.cost ||
+        q.length >= (d.infantry ? 12 : 8) ||
         (!d.building && !game.owned(game.producer(b.dataset.type)).length);
       b.classList.toggle("locked", locked);
-      b.classList.toggle("ready", ready);
-      b.querySelector(".cost").textContent = ready ? "就绪 ↗" : `$ ${d.cost}`;
+      b.querySelector(".cost").textContent = `$ ${d.cost}`;
+      b.querySelector("small").textContent = count
+        ? `已排 ${count} ${d.building ? "座" : "个"} · 点击再排一${d.building ? "座" : "个"}`
+        : d.desc;
       b.setAttribute("aria-disabled", String(locked));
     }
     selected = new Set([...selected].filter((id) => game.get(id)));
@@ -1337,7 +1341,7 @@
     showModal(
       "help",
       "指挥手册",
-      "<b>选择</b>：左键单选 / 拖动框选 / Shift 增选。<br><b>指挥</b>：右键移动、攻击敌人或让矿车采矿。<br><b>攻击推进</b>：按 A，再左键点击目标位置。<br><b>快捷键</b>：Q 全选战斗部队 · S 停止 · H 回基地。<br><b>视角</b>：方向键 / 中键拖动 / 小地图定位，滚轮缩放。<br><b>建设</b>：点击建筑，完成后点击「部署」，再选择空地。<br><b>电力</b>：供电低于用电时，生产减速、炮塔停火。<br><b>步兵</b>：兵营训练步枪兵和反坦克兵，与战车独立排队。<br><b>新一局</b>：可选难度，种子留空随机；没有存档。",
+      "<b>选择</b>：左键单选 / 拖动框选 / Shift 增选。<br><b>指挥</b>：右键移动、攻击敌人或让矿车采矿。<br><b>攻击推进</b>：按 A，再左键点击目标位置。<br><b>快捷键</b>：Q 全选战斗部队 · S 停止 · H 回基地。<br><b>视角</b>：方向键 / 中键拖动 / 小地图定位，滚轮缩放。<br><b>建设</b>：点击建筑可连续排队（最多 8 座）；队首完成后点「部署」放置，再施工下一座。队列里点「取消」全额退款。<br><b>电力</b>：供电低于用电时，生产减速、炮塔停火。<br><b>步兵</b>：兵营训练步枪兵和反坦克兵，与战车独立排队。<br><b>新一局</b>：可选难度，种子留空随机；没有存档。",
       started ? "返回战斗" : "返回任务介绍",
     ),
   );

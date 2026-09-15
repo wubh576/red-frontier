@@ -958,3 +958,26 @@ kbd {
     display: none;
   }
 }
+
+#queue-summary {
+  color: var(--muted);
+  font-size: 9px;
+  margin: 10px 0 4px;
+}
+.queue-row button[data-kind] {
+  font-size: 10px;
+  padding: 6px 5px;
+  border: 1px solid #526047;
+  color: #d6c6a7;
+}
+.queue-row button.deploy {
+  color: var(--accent);
+  font-size: 11px;
+  padding: 5px;
+}
+.queue-row.waiting .progress-label {
+  color: var(--muted);
+}
+.queue-row {
+  min-height: 28px;
+}

@@ -45,8 +45,8 @@ test("construction spends once, blocks overlaps, completes and deploys", () => {
   const g = quiet(new Game({ seed: 7 }));
   assert.equal(g.enqueue("factory"), null);
   assert.equal(g.money[0], 1500);
-  assert.ok(g.enqueue("power"));
-  assert.equal(g.money[0], 1500);
+  assert.equal(g.enqueue("power"), null);
+  assert.equal(g.money[0], 1000);
   assert.equal(g.place(700, 1100), false);
   assert.equal(
     g.canPlace("factory", g.owned("hq")[0].x, g.owned("hq")[0].y),
@@ -55,9 +55,80 @@ test("construction spends once, blocks overlaps, completes and deploys", () => {
   advance(g, 12.1);
   const e = placeReady(g, "factory");
   assert.equal(e.type, "factory");
-  assert.equal(g.queue.building.length, 0);
+  assert.equal(g.queue.building.length, 1);
+  assert.equal(g.queue.building[0].type, "power");
+  assert.equal(g.queue.building[0].progress, 0);
   assert.equal(g.canPlace("factory", e.x, e.y), false);
   assert.equal(g.canPlace("factory", 2100, 1300), false);
+});
+test("buildings wait for deployment, then construct in order", () => {
+  const g = quiet(new Game({ seed: 7 }));
+  g.enqueue("power");
+  g.enqueue("barracks");
+  advance(g, 20);
+  assert.equal(g.queue.building[0].progress, 1);
+  assert.equal(g.queue.building[1].progress, 0);
+  // A ready building still permits another copy to be queued.
+  assert.equal(g.enqueue("power"), null);
+  assert.equal(placeReady(g, "power").type, "power");
+  advance(g, 1);
+  assert.ok(g.queue.building[0].progress > 0);
+  assert.equal(g.queue.building[0].type, "barracks");
+  assert.equal(g.queue.building[1].progress, 0);
+});
+test("cancelling waiting, active and ready buildings refunds each exactly once", () => {
+  const g = quiet(new Game({ seed: 7 }));
+  g.enqueue("power");
+  g.enqueue("barracks");
+  g.enqueue("power");
+  advance(g, 2);
+  const progress = g.queue.building[0].progress;
+  let money = g.money[0];
+  g.cancel("building", 1);
+  assert.equal(g.money[0], money + TYPES.barracks.cost);
+  assert.equal(g.queue.building[0].progress, progress);
+  assert.equal(g.queue.building[1].progress, 0);
+  money = g.money[0];
+  g.cancel("building", 0);
+  assert.equal(g.money[0], money + TYPES.power.cost);
+  assert.equal(g.queue.building[0].progress, 0);
+  advance(g, 1);
+  assert.ok(g.queue.building[0].progress > 0);
+  advance(g, 9);
+  assert.equal(g.queue.building[0].progress, 1);
+  money = g.money[0];
+  g.cancel("building", 0);
+  assert.equal(g.money[0], money + TYPES.power.cost);
+  assert.equal(g.queue.building.length, 0);
+  assert.equal(g.owned("power").length, 1);
+  g.cancel("building", 0);
+  assert.equal(g.money[0], money + TYPES.power.cost);
+});
+test("building queue holds eight projects and cancellation frees a slot", () => {
+  const g = new Game({ seed: 7 });
+  g.money[0] = 10000;
+  for (let i = 0; i < 8; i++) assert.equal(g.enqueue("power"), null);
+  assert.equal(g.money[0], 6000);
+  assert.match(g.enqueue("barracks"), /队列已满/);
+  assert.equal(g.money[0], 6000);
+  g.cancel("building", 4);
+  assert.equal(g.enqueue("barracks"), null);
+  assert.equal(g.queue.building.length, 8);
+  assert.equal(g.money[0], 6100);
+});
+test("queued refineries reserve gifted harvesters against the unit limit", () => {
+  const g = new Game({ seed: 7 });
+  g.money[0] = 10000;
+  g.add("factory", 0, 792, 1176);
+  while (g.owned().filter((e) => !TYPES[e.type].building).length < 59)
+    g.add("rifle", 0, 700, 1200);
+  assert.equal(g.enqueue("refinery"), null);
+  const money = g.money[0];
+  assert.match(g.enqueue("refinery"), /上限/);
+  assert.match(g.enqueue("tank"), /上限/);
+  assert.equal(g.money[0], money);
+  g.cancel("building");
+  assert.equal(g.enqueue("tank"), null);
 });
 test("production requires a factory, supports queuing and refunds cancellations", () => {
   const g = quiet(new Game({ seed: 7 }));

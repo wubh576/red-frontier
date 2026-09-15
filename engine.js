@@ -590,17 +590,19 @@
       if (!d || !d.cost) return "无法生产";
       const kind = this.queueKind(type),
         queue = this.queue[kind];
-      if (d.building && queue.length) return "已有建筑正在建造或等待部署";
+      if (d.building && queue.length >= 8)
+        return "建筑队列已满（最多 8 座，含等待部署的建筑）";
       if (!d.building && !this.owned(this.producer(type)).length)
         return `请先建造${TYPES[this.producer(type)].name}`;
       const limit = d.infantry ? 12 : 8;
       if (!d.building && queue.length >= limit)
         return `生产队列已满（最多 ${limit} 个单位）`;
       if (
-        !d.building &&
+        (!d.building || type === "refinery") &&
         this.owned().filter((e) => !TYPES[e.type].building).length +
           this.queue.unit.length +
-          this.queue.infantry.length >=
+          this.queue.infantry.length +
+          this.queue.building.filter((q) => q.type === "refinery").length >=
           60
       )
         return "部队已达上限（60 个单位）";
